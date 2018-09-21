@@ -1,0 +1,70 @@
+import numpy as np 
+import os
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from PIL import Image
+
+# 恢复图像
+def restore(sigma, u, v, i): # 奇异值、左特征向量、右特征向量、叠加层数
+    # 根据特征向量，构建单位矩阵
+    m = u.shape[0]
+    n = v.shape[0]
+    a = np.zeros((m,n))
+
+    # 按层叠加
+    for j in range(i):
+        uj = u[:,j].reshape(m, 1)
+        vj = v[j].reshape(1,n)
+        a += sigma[j] * np.dot(uj, vj)
+    a = a.clip(0, 255)
+    print('a:', a)
+    return np.rint(a).astype('uint8')
+
+
+# 程序入口
+if __name__ == '__main__':
+
+    # 将图片文件读取，转为数组,新建输出路径
+    cwd = os.getcwd()
+    A = Image.open('sh.jpg', 'r')
+    a = np.array(A)
+
+    output_path = 'sh1.output'
+    if not os.path.exists(output_path):
+        os.mkdir(output_path)
+
+    # a 的shape为(4608, 3456, 3)
+    #进行奇异值分解(r,g,b 三个通道)
+    u_r, sigma_r, v_r = np.linalg.svd(a[:,:,0])
+    u_g, sigma_g, v_g = np.linalg.svd(a[:,:,1])
+    u_b, sigma_b, v_b = np.linalg.svd(a[:,:,2])
+
+    # print(u_r.shape, sigma_r.shape, v_r.shape)
+    
+    plt.figure(figsize=(8,8), facecolor='w')
+
+    # matploblib 解决中文显示的问题
+    mpl.rcParams['font.sans-serif'] = ['simHei']
+    mpl.rcParams['axes.unicode_minus'] = False
+
+    # 分别获取1到num个奇异值来恢复图像
+    num = 20
+    for i in range(1, num+1):
+        R = restore(sigma_r, u_r, v_r, i)
+        G = restore(sigma_g, u_g, v_g, i)
+        B = restore(sigma_b, u_b, v_b, i)
+
+        I = np.stack((R,G,B), axis=1)
+        # 将array保存为三通道的彩色图像
+        Image.fromarray(I).save('%s/svd_%d.png' % (output_path, i))
+
+        # 按照3行4列显示前12个图像
+        if i <= 12:
+            plt.subplot(3, 4, i)
+            plt.imshow(I)
+            plt.axis('off')
+            plt.title('奇异值个数：%d' % i)
+    
+    plt.suptitle('SVD与图像分解', fontsize=20)
+    plt.tight_layout(0.3, rect=(0,0,1,0.92))
+    plt.show()
